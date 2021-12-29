@@ -1,0 +1,7 @@
+.cpcache
+.clj-kondo
+.lsp
+.rebel_readline_history
+.nrepl-port
+db.datahike
+.envrc
