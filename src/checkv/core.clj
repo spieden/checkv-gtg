@@ -56,6 +56,7 @@
                               {:item/linked-items [:item/id]}
                               {:item/list [:list/id]}])]
           :where [[?item :item/tags ?tag]
+                  [?item :item/status 0]
                   [?list :list/tags ?tag]
                   (not [?item :item/list ?list])
                   (not [?existing :item/list ?list]
