@@ -52,6 +52,7 @@
                  (pull ?item [:item/content
                               :item/tags-as-text
                               :item/id
+                              :item/updated-at
                               {:item/linked-items [:item/id]}
                               {:item/list [:list/id]}])]
           :where [[?item :item/tags ?tag]
@@ -66,7 +67,8 @@
   (mapv #(let [[list-id item-ent] %]
            (client/push-ref-item list-id
                                  item-ent))
-        (pending-ref-items)))
+        (sort-by #(-> % second :item/updated-at)
+                 (pending-ref-items))))
 
 (defn -main
   []

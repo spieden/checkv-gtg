@@ -42,5 +42,6 @@
 (defn sandbox
   []
   (core/sync-changed-items)
-  (core/sync-ref-items))
+  (->> (core/pending-ref-items)
+       (sort-by #(-> % second :item/updated-at))))
 
