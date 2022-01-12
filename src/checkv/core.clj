@@ -60,7 +60,8 @@
                   [?list :list/tags ?tag]
                   (not [?item :item/list ?list])
                   (not [?existing :item/list ?list]
-                       [?existing :item/linked-items ?item])
+                       [?existing :item/linked-items ?item]
+                       [?existing :list/tags-as-text ""])
                   [?list :list/id ?list-id]]}))
 
 (defn sync-ref-items
