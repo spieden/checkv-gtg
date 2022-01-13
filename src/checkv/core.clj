@@ -54,15 +54,27 @@
                               :item/id
                               :item/updated-at
                               {:item/linked-items [:item/id]}
-                              {:item/list [:list/id]}])]
-          :where [[?item :item/tags ?tag]
-                  [?item :item/status 0]
-                  [?list :list/tags ?tag]
-                  (not [?item :item/list ?list])
-                  (not [?existing :item/list ?list]
-                       [?existing :item/linked-items ?item]
-                       [?existing :list/tags-as-text ""])
-                  [?list :list/id ?list-id]]}))
+                              {:item/list [:list/id
+                                           :list/tags-as-text]}])]
+          :where [[?item :item/status 0] ; item is "open"
+
+                  ; item and target list share at least one tag
+                  [?item :item/tags ?tag]
+                  [?target-list :list/tags ?tag]
+
+                  ; item not from the target list
+                  (not [?item :item/list ?target-list])
+
+                  ; item not already linked from target list
+                  (not [?existing-item :item/list ?target-list]
+                       [?existing-item :item/linked-items ?item])
+
+                  ; item's list doesn't have any tags (is a journal)
+                  ; this prevents ping-pong between tag lists
+                  [?item :item/list ?item-list]
+                  [?item-list :list/tags-as-text ""]
+
+                  [?target-list :list/id ?list-id]]}))
 
 (defn sync-ref-items
   []
