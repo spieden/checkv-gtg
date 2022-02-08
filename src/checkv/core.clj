@@ -5,9 +5,10 @@
 
 (defn sync-lists
   []
-  (db/transact (->> (client/lists)
-                    (map marshal/list-doc->txn-ent)
-                    (db/forward-ref-decls))) )
+  (-> (->> (client/lists)
+           (map marshal/list-doc->txn-ent)
+           (db/forward-ref-decls))
+      #_(db/transact)))
 
 (defn sync-items
   [list-id]
@@ -30,11 +31,11 @@
   []
   (let [last-update (last-seen-update)
         lists-txn-frag (into []
-                            (comp (filter #(< (compare last-update
-                                                       (:updated_at %))
-                                              0))
-                                  (map marshal/list-doc->txn-ent))
-                            (client/lists))
+                             (comp (filter #(< (compare last-update
+                                                        (:updated_at %))
+                                               0))
+                                   (map marshal/list-doc->txn-ent))
+                             (client/lists))
         items-txn-frag (into []
                              (comp (mapcat #(client/get-list (:list/id %)))
                                    (map (comp marshal/filter-nil-valued
