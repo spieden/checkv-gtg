@@ -1,14 +1,17 @@
 (ns checkv.core
-  (:require [checkv.marshal :as marshal]
-            [checkv.client :as client]
-            [checkv.db :as db]))
+  (:require
+    [checkv.client :as client]
+    [checkv.db :as db]
+    [checkv.marshal :as marshal]))
+
 
 (defn sync-lists
   []
   (-> (->> (client/lists)
            (map marshal/list-doc->txn-ent)
-           (db/forward-ref-decls))
+           (db/add-tag-ents :list/tags))
       #_(db/transact)))
+
 
 (defn sync-items
   [list-id]
@@ -16,8 +19,9 @@
        (into []
              (map (comp marshal/filter-nil-valued
                         marshal/item-doc->txn-ent)))
-       (db/forward-ref-decls)
+       (db/add-tag-ents :item/tags)
        #_(db/transact)))
+
 
 (defn last-seen-update
   []
@@ -27,7 +31,8 @@
        (sort)
        (last)))
 
-(defn sync-changed-items
+
+(defn changed-list-txns
   []
   (let [last-update (last-seen-update)
         lists-txn-frag (into []
@@ -35,17 +40,22 @@
                                                         (:updated_at %))
                                                0))
                                    (map marshal/list-doc->txn-ent))
-                             (client/lists))
-        items-txn-frag (into []
-                             (comp (mapcat #(client/get-list (:list/id %)))
-                                   (map (comp marshal/filter-nil-valued
-                                              marshal/item-doc->txn-ent)))
-                             lists-txn-frag)]
-    (some->> (into lists-txn-frag
-                   items-txn-frag)
-             (not-empty)
-             (db/forward-ref-decls)
-             (db/transact))))
+                             (client/lists))]
+    (map (fn [list-ent]
+           (->> (into [list-ent]
+                      (map (comp marshal/filter-nil-valued
+                                 marshal/item-doc->txn-ent))
+                      (client/get-list (:list/id list-ent)))
+                (db/add-tag-ents :item/tags)
+                (db/add-tag-ents :list/tags)))
+         lists-txn-frag)))
+
+
+(defn sync-changed-items
+  []
+  (when-let [list-txns (not-empty (changed-list-txns))]
+    (mapv db/transact list-txns)))
+
 
 (defn pending-ref-items
   []
@@ -53,6 +63,7 @@
                  (pull ?item [:item/content
                               :item/tags-as-text
                               :item/id
+                              :item/status
                               :item/updated-at
                               {:item/linked-items [:item/id]}
                               {:item/list [:list/id
@@ -77,6 +88,7 @@
 
                   [?target-list :list/id ?list-id]]}))
 
+
 (defn sync-ref-items
   []
   (mapv #(let [[list-id item-ent] %]
@@ -84,6 +96,7 @@
                                  item-ent))
         (sort-by #(-> % second :item/updated-at)
                  (pending-ref-items))))
+
 
 (defn -main
   []
@@ -93,4 +106,3 @@
       (prn (sync-ref-items)))
     (Thread/sleep 5000)
     (recur)))
-

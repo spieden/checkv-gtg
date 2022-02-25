@@ -52,27 +52,34 @@
 (defn item-doc->txn-ent
   [item]
   (-> item
+      (assoc :db/id (pr-str [:item/id (:id item)]))
       (update :tags (fn [tags]
-                      (mapv #(vector :tag %)
+                      (mapv #(pr-str [:tag %])
                             (keys tags))))
       (update :link_ids (fn [ids]
-                          (mapv #(vector :item/id %)
+                          (mapv #(pr-str [:item/id %])
                                 ids)))
       (update :parent_id (fn [v]
                            (when (not= v 0)
-                             [:item/id v])))
+                             (pr-str [:item/id v]))))
       (update :backlink_ids (fn [ids]
-                              (mapv #(vector :item/id %)
+                              (mapv #(pr-str [:item/id %])
                                     ids)))
-      (update :checklist_id #(vector :list/id %))
-      (set/rename-keys item-key->attr)))
+      (update :checklist_id #(pr-str [:list/id %]))
+      (set/rename-keys item-key->attr)
+      (dissoc :item/details)
+      (dissoc :uploads)
+      (dissoc :color)))
 
 (defn list-doc->txn-ent
   [list-doc]
   (-> list-doc
+      (assoc :db/id (pr-str [:list/id (:id list-doc)]))
       (update :tags (fn [tags]
-                      (mapv #(vector :tag %)
+                      (mapv #(pr-str [:tag %])
                             (keys tags))))
       (set/rename-keys list-key->attr)
-      (filter-nil-valued)))
+      (filter-nil-valued)
+      (dissoc :uploads)
+      (dissoc :color)))
 
