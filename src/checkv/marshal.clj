@@ -43,12 +43,6 @@
    :markdown? :list/markdown?
    :created_at :list/created-at})
 
-(defn filter-nil-valued
-  [ent]
-  (into {}
-        (filter #(some? (val %)))
-        ent))
-
 (defn ->ref-id
   [attr]
   (fn [v] {attr v}))
