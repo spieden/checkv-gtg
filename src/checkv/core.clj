@@ -1,61 +1,72 @@
 (ns checkv.core
   (:require
     [checkv.client :as client]
+    [hashp.core]
     [checkv.db :as db]
-    [checkv.marshal :as marshal]))
-
+    [checkv.marshal :as marshal]
+    [xtdb.api :as xt]))
 
 (defn sync-lists
   []
-  (-> (->> (client/lists)
-           (map marshal/list-doc->txn-ent)
-           (db/add-tag-ents :list/tags))
-      #_(db/transact)))
-
+  (->> (client/lists)
+       (map marshal/list-doc->txn-ent) 
+       (db/transact)))
 
 (defn sync-items
   [list-id]
   (->> (client/get-list list-id)
-       (into []
-             (map (comp marshal/filter-nil-valued
-                        marshal/item-doc->txn-ent)))
-       (db/add-tag-ents :item/tags)
-       #_(db/transact)))
+       (map marshal/item-doc->txn-ent)
+       (db/transact)))
 
-
-(defn last-seen-update
+(defn last-list-update
   []
-  (->> (db/q '{:find [?updated-at]
-               :where [[_ :list/updated-at ?updated-at]]})
-       (mapv first)
-       (sort)
-       (last)))
+  (ffirst (db/q '{:find [(max ?updated-at)]
+                  :where [[_ :list/updated-at ?updated-at]]})))
 
+(defn updated-since?
+  [last-seen-update {updated :updated_at}]
+  (< (compare last-seen-update
+              updated)
+     0))
 
-(defn changed-list-txns
+(defn changed-lists
+  [last-seen-update]
+  (into []
+        (filter (partial updated-since?
+                         last-seen-update))
+        (client/lists)))
+
+(defn changed-items
+  [list-id]
+  (let [last-seen-update (ffirst (db/q '{:find [(max ?updated-at)]
+                                         :in [?list-id]
+                                         :where [[?i :item/list-id ?list-id]
+                                                 [?i :item/updated-at ?updated-at]]}
+                                       list-id))]
+    (into []
+          (filter (partial updated-since?
+                           last-seen-update))
+          (client/get-list list-id))))
+
+(defn changed-txn
+  ([]
+   (changed-txn (last-list-update)))
+  ([last-list-update]
+   (when-let [lists (not-empty (changed-lists last-list-update))]
+     (into (mapv marshal/list-doc->txn-ent
+                 lists)
+           (comp (mapcat (fn [{list-id :id}]
+                           (if last-list-update
+                             (changed-items list-id)
+                             (client/get-list list-id))))
+                 (map marshal/item-doc->txn-ent))
+           lists))))
+
+(defn sync-changed
   []
-  (let [last-update (last-seen-update)
-        lists-txn-frag (into []
-                             (comp (filter #(< (compare last-update
-                                                        (:updated_at %))
-                                               0))
-                                   (map marshal/list-doc->txn-ent))
-                             (client/lists))]
-    (map (fn [list-ent]
-           (->> (into [list-ent]
-                      (map (comp marshal/filter-nil-valued
-                                 marshal/item-doc->txn-ent))
-                      (client/get-list (:list/id list-ent)))
-                (db/add-tag-ents :item/tags)
-                (db/add-tag-ents :list/tags)))
-         lists-txn-frag)))
-
-
-(defn sync-changed-items
-  []
-  (when-let [list-txns (not-empty (changed-list-txns))]
-    (mapv db/transact list-txns)))
-
+  (when-let [txn (changed-txn)]
+    (db/transact txn)
+    txn))
 
 (defn pending-ref-items
   []
@@ -65,7 +76,7 @@
                               :item/id
                               :item/status
                               :item/updated-at
-                              {:item/linked-items [:item/id]}
+                              :item/linked-items
                               {:item/list [:list/id
                                            :list/tags-as-text]}])]
           :where [[?item :item/status 0] ; item is "open"
@@ -78,8 +89,10 @@
                   (not [?item :item/list ?target-list])
 
                   ; item not already linked from target list
-                  (not [?existing-item :item/list ?target-list]
-                       [?existing-item :item/linked-items ?item])
+                  (not-join [?target-list
+                             ?item]
+                            [?existing-item :item/list ?target-list]
+                            [?existing-item :item/linked-items ?item])
 
                   ; item's list doesn't have any tags (is a journal)
                   ; this prevents ping-pong between tag lists
@@ -87,7 +100,6 @@
                   [?item-list :list/tags-as-text ""]
 
                   [?target-list :list/id ?list-id]]}))
-
 
 (defn sync-ref-items
   []
@@ -97,12 +109,16 @@
         (sort-by #(-> % second :item/updated-at)
                  (pending-ref-items))))
 
+(defn tick
+  []
+  (when-let [changed (sync-changed)]
+    (prn changed)
+    (prn (sync-ref-items))))
 
 (defn -main
   []
   (loop []
-    (when-let [changed (sync-changed-items)]
-      (prn changed)
-      (prn (sync-ref-items)))
+    (tick)
     (Thread/sleep 5000)
     (recur)))
+

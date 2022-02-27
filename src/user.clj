@@ -1,6 +1,7 @@
 (ns user
   (:require
    [checkv.client :as client]
+   [sandbox]
    [clojure.tools.namespace.repl]
    [martian.hato :as hato]
    [martian.interceptors :refer [inject]]
@@ -39,11 +40,5 @@
   (reset! client/client
           (client/bootstrap)))
 
-(defn sandbox
-  []
-  (core/sync-lists)
-  #_(do
-      (core/sync-changed-items)
-      (->> (core/pending-ref-items)
-           (sort-by #(-> % second :item/updated-at)))))
+
 

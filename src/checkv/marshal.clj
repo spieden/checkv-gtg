@@ -49,37 +49,28 @@
         (filter #(some? (val %)))
         ent))
 
+(defn ->ref-id
+  [attr]
+  (fn [v] {attr v}))
+
+(defn ->ref-ids
+  [attr]
+  (fn [vs] (mapv #(hash-map attr %) vs)))
+
 (defn item-doc->txn-ent
   [item]
-  (-> item
-      (assoc :db/id (pr-str [:item/id (:id item)]))
-      (update :tags (fn [tags]
-                      (mapv #(pr-str [:tag %])
-                            (keys tags))))
-      (update :link_ids (fn [ids]
-                          (mapv #(pr-str [:item/id %])
-                                ids)))
-      (update :parent_id (fn [v]
-                           (when (not= v 0)
-                             (pr-str [:item/id v]))))
-      (update :backlink_ids (fn [ids]
-                              (mapv #(pr-str [:item/id %])
-                                    ids)))
-      (update :checklist_id #(pr-str [:list/id %]))
-      (set/rename-keys item-key->attr)
-      (dissoc :item/details)
-      (dissoc :uploads)
-      (dissoc :color)))
+  [:xtdb.api/put (-> item
+                     (set/rename-keys item-key->attr)
+                     (assoc :xt/id {:item/id (:id item)})
+                     (update :item/tags #(vec (keys %)))
+                     (update :item/linked-items (->ref-ids :item/id))
+                     (update :item/parent-item (->ref-id :item/id))
+                     (update :item/list (->ref-id :list/id)))])
 
 (defn list-doc->txn-ent
   [list-doc]
-  (-> list-doc
-      (assoc :db/id (pr-str [:list/id (:id list-doc)]))
-      (update :tags (fn [tags]
-                      (mapv #(pr-str [:tag %])
-                            (keys tags))))
-      (set/rename-keys list-key->attr)
-      (filter-nil-valued)
-      (dissoc :uploads)
-      (dissoc :color)))
+  [:xtdb.api/put (-> list-doc
+                     (set/rename-keys list-key->attr)
+                     (assoc :xt/id {:list/id (:id list-doc)})
+                     (update :list/tags #(vec (keys %))))])
 
