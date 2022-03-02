@@ -36,17 +36,23 @@
                          last-seen-update))
         (client/lists)))
 
+(defn last-item-updated-at
+  [list-id]
+  ; todo: why can't i pass {:list/id list-id} instead?
+  (ffirst (db/q '{:find [(max ?updated-at)]
+                  :in [?list-id]
+                  :where [[?l :list/id ?list-id]
+                          [?i :item/list ?l]
+                          [?i :item/updated-at ?updated-at]]}
+                list-id)))
+
 (defn changed-items
   [list-id]
-  (let [last-seen-update (ffirst (db/q '{:find [(max ?updated-at)]
-                                         :in [?list-id]
-                                         :where [[?i :item/list-id ?list-id]
-                                                 [?i :item/updated-at ?updated-at]]}
-                                       list-id))]
+  (let [last-seen-update (last-item-updated-at list-id)]
     (into []
-          (filter (partial updated-since?
-                           last-seen-update))
-          (client/get-list list-id))))
+             (filter (partial updated-since?
+                              last-seen-update))
+             (client/get-list list-id))))
 
 (defn changed-txn
   ([]

@@ -56,6 +56,8 @@
   [:xtdb.api/put (-> item
                      (set/rename-keys item-key->attr)
                      (assoc :xt/id {:item/id (:id item)})
+                     (dissoc :item/position) ; mutation doesn't change ..
+                     (dissoc :item/backlinks) ; .. updated_at
                      (update :item/tags #(vec (keys %)))
                      (update :item/linked-items (->ref-ids :item/id))
                      (update :item/parent-item (->ref-id :item/id))

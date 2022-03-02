@@ -1,6 +1,7 @@
 {:deps {com.github.oliyh/martian {:mvn/version "0.1.18"}
         com.github.oliyh/martian-hato {:mvn/version "0.1.18"}
         datalevin/datalevin {:mvn/version "0.5.28"}
+        lambdaisland/deep-diff2 {:mvn/version "2.0.108"}
         org.clojure/core.memoize {:mvn/version "1.0.253"}
         com.xtdb/xtdb-core {:mvn/version "1.20.0"}
         com.xtdb/xtdb-rocksdb {:mvn/version "1.20.0"}
